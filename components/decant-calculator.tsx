@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { toPng } from "html-to-image";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -119,6 +120,7 @@ function validateInputs(inputs: CalculatorInputs) {
 }
 
 export function DecantCalculator() {
+  const promoCardRef = useRef<HTMLDivElement>(null);
   const [perfumeName, setPerfumeName] = useState("Hawas Ice");
   const [shopName, setShopName] = useState("Decant BD");
   const [inputs, setInputs] = useState<CalculatorInputs>(DEFAULT_CALCULATOR_INPUTS);
@@ -132,6 +134,7 @@ export function DecantCalculator() {
   const calculations = useMemo(() => calculateDecantPrices(inputs), [inputs]);
   const errors = useMemo(() => validateInputs(inputs), [inputs]);
   const selectedBackground = CARD_BACKGROUNDS[cardBackground];
+  const displayName = perfumeName.trim() || "Perfume Decants";
 
   const tenMlResult = calculations.results.find((result) => result.size === 10);
   const competitor = calculateCompetitorProfit({
@@ -176,118 +179,30 @@ export function DecantCalculator() {
     }
   };
 
-  const downloadPromoCard = () => {
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
-
-    if (!context) {
-      setDownloadLabel("Download failed");
-      window.setTimeout(() => setDownloadLabel("Download Card"), 1800);
+  const downloadPromoCard = async () => {
+    if (!promoCardRef.current) {
       return;
     }
 
-    const width = 1080;
-    const height = 1350;
-    const padding = 88;
-    canvas.width = width;
-    canvas.height = height;
-
-    const gradient = context.createLinearGradient(0, 0, width, height);
-    gradient.addColorStop(0, selectedBackground.from);
-    gradient.addColorStop(1, selectedBackground.to);
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, width, height);
-
-    context.fillStyle = "rgba(255, 255, 255, 0.11)";
-    roundRect(context, padding, padding, width - padding * 2, height - padding * 2, 42);
-    context.fill();
-
-    context.strokeStyle = "rgba(255, 255, 255, 0.28)";
-    context.lineWidth = 3;
-    roundRect(context, padding, padding, width - padding * 2, height - padding * 2, 42);
-    context.stroke();
-
-    context.fillStyle = "rgba(255, 255, 255, 0.12)";
-    context.beginPath();
-    context.arc(940, 170, 180, 0, Math.PI * 2);
-    context.fill();
-
-    context.fillStyle = "rgba(0, 0, 0, 0.14)";
-    context.beginPath();
-    context.arc(110, 1130, 230, 0, Math.PI * 2);
-    context.fill();
-
-    context.fillStyle = accentColor;
-    context.font = "700 32px Arial, Helvetica, sans-serif";
-    context.textAlign = "center";
-    context.fillText(shopName.trim() || "Your Shop", width / 2, 170);
-
-    context.fillStyle = fontColor;
-    context.font = "800 82px Arial, Helvetica, sans-serif";
-    const displayName = perfumeName.trim() || "Perfume Decants";
-    wrapCanvasText(context, displayName, width / 2, 292, width - padding * 3, 88);
-
-    context.fillStyle = "rgba(0, 0, 0, 0.18)";
-    roundRect(context, 332, 405, 416, 58, 29);
-    context.fill();
-
-    context.fillStyle = accentColor;
-    context.font = "700 28px Arial, Helvetica, sans-serif";
-    context.fillText("DECANT PRICE LIST", width / 2, 443);
-
-    const tableX = 155;
-    const tableY = 525;
-    const tableWidth = width - tableX * 2;
-    const rowHeight = 76;
-
-    context.fillStyle = "rgba(255, 255, 255, 0.18)";
-    roundRect(context, tableX, tableY, tableWidth, rowHeight * (calculations.results.length + 1), 28);
-    context.fill();
-
-    context.fillStyle = accentColor;
-    context.font = "700 32px Arial, Helvetica, sans-serif";
-    context.textAlign = "left";
-    context.fillText("Size", tableX + 44, tableY + 48);
-    context.textAlign = "right";
-    context.fillText("Price", tableX + tableWidth - 44, tableY + 48);
-
-    calculations.results.forEach((result, index) => {
-      const y = tableY + rowHeight * (index + 1);
-      context.fillStyle = index % 2 === 0 ? "rgba(0, 0, 0, 0.12)" : "rgba(255, 255, 255, 0.04)";
-      if (index === calculations.results.length - 1) {
-        roundRect(context, tableX, y, tableWidth, rowHeight, 28);
-        context.fill();
-        context.clearRect(tableX, y, tableWidth, 28);
-        context.fillRect(tableX, y, tableWidth, 28);
-      } else {
-        context.fillRect(tableX, y, tableWidth, rowHeight);
-      }
-
-      context.fillStyle = fontColor;
-      context.font = "700 34px Arial, Helvetica, sans-serif";
-      context.textAlign = "left";
-      context.fillText(`${result.size}ml`, tableX + 44, y + 47);
-      context.textAlign = "right";
-      context.fillText(`${currencyFormatter.format(result.sellingPrice)} BDT`, tableX + tableWidth - 44, y + 47);
-    });
-
-    context.fillStyle = "rgba(255, 255, 255, 0.16)";
-    roundRect(context, 205, 1178, 670, 86, 43);
-    context.fill();
-
-    context.fillStyle = accentColor;
-    context.font = "700 30px Arial, Helvetica, sans-serif";
-    context.textAlign = "center";
-    context.fillText("DM TO ORDER", width / 2, 1232);
-
-    const link = document.createElement("a");
     const fileName = `${displayName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "perfume"}-price-card.png`;
-    link.download = fileName;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
 
-    setDownloadLabel("Downloaded");
-    window.setTimeout(() => setDownloadLabel("Download Card"), 1800);
+    try {
+      setDownloadLabel("Preparing...");
+      const dataUrl = await toPng(promoCardRef.current, {
+        cacheBust: true,
+        pixelRatio: 3,
+        backgroundColor: selectedBackground.from,
+      });
+      const link = document.createElement("a");
+      link.download = fileName;
+      link.href = dataUrl;
+      link.click();
+      setDownloadLabel("Downloaded");
+      window.setTimeout(() => setDownloadLabel("Download Card"), 1800);
+    } catch {
+      setDownloadLabel("Download failed");
+      window.setTimeout(() => setDownloadLabel("Download Card"), 1800);
+    }
   };
 
   return (
@@ -563,41 +478,42 @@ export function DecantCalculator() {
                 </div>
 
                 <div
-                  className="relative overflow-hidden rounded-lg border border-white/20 p-5 shadow-sm"
+                  ref={promoCardRef}
+                  className="relative mx-auto aspect-[4/5] w-full max-w-[540px] overflow-hidden rounded-lg border border-white/20 p-[clamp(1rem,4vw,2rem)] shadow-sm"
                   style={{
                     background: `linear-gradient(135deg, ${selectedBackground.from}, ${selectedBackground.to})`,
                     color: fontColor,
                   }}
                 >
-                  <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/10" />
-                  <div className="absolute -bottom-14 -left-12 h-40 w-40 rounded-full bg-black/10" />
-                  <div className="relative rounded-lg border border-white/25 bg-white/10 p-5 text-center">
-                    <p className="text-sm font-bold uppercase tracking-normal" style={{ color: accentColor }}>
+                  <div className="absolute -right-[10%] -top-[8%] h-[28%] w-[28%] rounded-full bg-white/10" />
+                  <div className="absolute -bottom-[12%] -left-[14%] h-[34%] w-[34%] rounded-full bg-black/10" />
+                  <div className="relative flex h-full flex-col rounded-lg border border-white/25 bg-white/10 p-[clamp(1rem,4vw,2rem)] text-center">
+                    <p className="text-[clamp(0.7rem,2.3vw,0.95rem)] font-bold uppercase tracking-normal" style={{ color: accentColor }}>
                       {shopName.trim() || "Your Shop"}
                     </p>
-                    <h3 className="mt-3 text-2xl font-black leading-tight">
+                    <h3 className="mt-[clamp(0.6rem,2vw,1rem)] text-[clamp(1.7rem,6vw,2.7rem)] font-black leading-tight">
                       {perfumeName.trim() || "Perfume Decants"}
                     </h3>
                     <p
-                      className="mx-auto mt-3 w-fit rounded-full bg-black/20 px-4 py-1 text-xs font-bold uppercase tracking-normal"
+                      className="mx-auto mt-[clamp(0.6rem,2vw,1rem)] w-fit rounded-full bg-black/20 px-[clamp(0.9rem,3vw,1.4rem)] py-[clamp(0.25rem,1vw,0.45rem)] text-[clamp(0.6rem,1.9vw,0.8rem)] font-bold uppercase tracking-normal"
                       style={{ color: accentColor }}
                     >
                       Decant Price List
                     </p>
-                    <div className="mt-5 overflow-hidden rounded-lg bg-white/15 text-sm">
-                      <div className="grid grid-cols-2 px-4 py-2 font-bold" style={{ color: accentColor }}>
+                    <div className="mt-[clamp(1.2rem,4vw,2rem)] overflow-hidden rounded-lg bg-white/15 text-[clamp(0.8rem,2.5vw,1rem)]">
+                      <div className="grid grid-cols-2 px-[clamp(1rem,4vw,1.7rem)] py-[clamp(0.5rem,1.8vw,0.8rem)] font-bold" style={{ color: accentColor }}>
                         <span className="text-left">Size</span>
                         <span className="text-right">Price</span>
                       </div>
                       {calculations.results.map((result) => (
-                        <div key={result.size} className="grid grid-cols-2 border-t border-white/15 px-4 py-2 font-semibold">
+                        <div key={result.size} className="grid grid-cols-2 border-t border-white/15 px-[clamp(1rem,4vw,1.7rem)] py-[clamp(0.47rem,1.7vw,0.75rem)] font-semibold">
                           <span className="text-left">{result.size}ml</span>
                           <span className="text-right">{currencyFormatter.format(result.sellingPrice)} BDT</span>
                         </div>
                       ))}
                     </div>
                     <div
-                      className="mx-auto mt-5 w-fit rounded-full bg-white/15 px-5 py-2 text-xs font-bold uppercase tracking-normal"
+                      className="mx-auto mt-auto w-fit rounded-full bg-white/15 px-[clamp(1.2rem,4vw,2rem)] py-[clamp(0.45rem,1.4vw,0.7rem)] text-[clamp(0.65rem,2vw,0.85rem)] font-bold uppercase tracking-normal"
                       style={{ color: accentColor }}
                     >
                       DM to order
@@ -605,7 +521,7 @@ export function DecantCalculator() {
                   </div>
                 </div>
 
-                <Button onClick={downloadPromoCard} className="w-full">
+                <Button onClick={downloadPromoCard} className="w-full" disabled={downloadLabel === "Preparing..."}>
                   {downloadLabel}
                 </Button>
               </CardContent>
@@ -615,54 +531,4 @@ export function DecantCalculator() {
       </div>
     </main>
   );
-}
-
-function wrapCanvasText(
-  context: CanvasRenderingContext2D,
-  text: string,
-  x: number,
-  y: number,
-  maxWidth: number,
-  lineHeight: number,
-) {
-  const words = text.split(" ");
-  const lines: string[] = [];
-  let line = "";
-
-  words.forEach((word) => {
-    const testLine = line ? `${line} ${word}` : word;
-    if (context.measureText(testLine).width > maxWidth && line) {
-      lines.push(line);
-      line = word;
-    } else {
-      line = testLine;
-    }
-  });
-
-  lines.push(line);
-
-  lines.slice(0, 2).forEach((textLine, index) => {
-    context.fillText(textLine, x, y + index * lineHeight);
-  });
-}
-
-function roundRect(
-  context: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-) {
-  context.beginPath();
-  context.moveTo(x + radius, y);
-  context.lineTo(x + width - radius, y);
-  context.quadraticCurveTo(x + width, y, x + width, y + radius);
-  context.lineTo(x + width, y + height - radius);
-  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-  context.lineTo(x + radius, y + height);
-  context.quadraticCurveTo(x, y + height, x, y + height - radius);
-  context.lineTo(x, y + radius);
-  context.quadraticCurveTo(x, y, x + radius, y);
-  context.closePath();
 }
