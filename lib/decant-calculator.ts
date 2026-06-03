@@ -1,13 +1,14 @@
 export const DECANT_SIZES = [2, 3, 5, 10, 15, 20, 30] as const;
 
-export type DecantSize = (typeof DECANT_SIZES)[number];
+export type DecantSize = number;
 
-export type PackagingCosts = Record<DecantSize, number>;
+export type PackagingCosts = Record<number, number>;
 
 export type CalculatorInputs = {
   bottleSize: number;
   bottleCost: number;
   shippingCost: number;
+  decantSizes: DecantSize[];
   packagingCosts: PackagingCosts;
   stickerCost: number;
   bubbleWrapCost: number;
@@ -37,6 +38,7 @@ export const DEFAULT_CALCULATOR_INPUTS: CalculatorInputs = {
   bottleSize: 100,
   bottleCost: 4000,
   shippingCost: 0,
+  decantSizes: [...DECANT_SIZES],
   packagingCosts: DEFAULT_PACKAGING_COSTS,
   stickerCost: 5,
   bubbleWrapCost: 5,
@@ -52,11 +54,12 @@ export function calculateDecantPrices(inputs: CalculatorInputs) {
   const safeBottleSize = inputs.bottleSize > 0 ? inputs.bottleSize : 1;
   const totalBottleCost = inputs.bottleCost + inputs.shippingCost;
   const costPerMl = totalBottleCost / safeBottleSize;
+  const decantSizes = normalizeDecantSizes(inputs.decantSizes);
 
-  const results: DecantResult[] = DECANT_SIZES.map((size) => {
+  const createResult = (size: DecantSize): DecantResult => {
     const perfumeCost = costPerMl * size;
     const packagingCost =
-      inputs.packagingCosts[size] +
+      getPackagingCost(inputs.packagingCosts, size) +
       inputs.stickerCost +
       inputs.bubbleWrapCost +
       inputs.miscCost;
@@ -70,15 +73,33 @@ export function calculateDecantPrices(inputs: CalculatorInputs) {
       totalCost,
       sellingPrice,
     };
-  });
+  };
+
+  const results: DecantResult[] = decantSizes.map(createResult);
 
   return {
     totalBottleCost,
     costPerMl,
     results,
-    revenue5ml: calculateBottleRevenue(results, safeBottleSize, 5),
-    revenue10ml: calculateBottleRevenue(results, safeBottleSize, 10),
+    revenue5ml: calculateBottleRevenue([createResult(5)], safeBottleSize, 5),
+    revenue10ml: calculateBottleRevenue([createResult(10)], safeBottleSize, 10),
   };
+}
+
+export function normalizeDecantSizes(sizes: DecantSize[]) {
+  const uniqueSizes = Array.from(
+    new Set(
+      sizes
+        .map((size) => Number(size))
+        .filter((size) => Number.isFinite(size) && size > 0),
+    ),
+  );
+
+  return uniqueSizes.sort((a, b) => a - b);
+}
+
+export function getPackagingCost(packagingCosts: PackagingCosts, size: DecantSize) {
+  return packagingCosts[size] ?? DEFAULT_PACKAGING_COSTS[size] ?? 25;
 }
 
 export function calculateBottleRevenue(

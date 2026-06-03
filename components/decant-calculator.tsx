@@ -19,6 +19,8 @@ import {
   createMarkdownPriceTable,
   DECANT_SIZES,
   DEFAULT_CALCULATOR_INPUTS,
+  getPackagingCost,
+  normalizeDecantSizes,
   type CalculatorInputs,
   type DecantSize,
 } from "@/lib/decant-calculator";
@@ -29,20 +31,60 @@ const CARD_BACKGROUNDS = {
     from: "#062e2a",
     to: "#10b981",
   },
+  oud: {
+    label: "Oud Gold",
+    from: "#20130a",
+    to: "#b7791f",
+  },
   noir: {
     label: "Noir",
     from: "#09090b",
     to: "#3f3f46",
+  },
+  royal: {
+    label: "Royal Blue",
+    from: "#111827",
+    to: "#2563eb",
   },
   rose: {
     label: "Rose",
     from: "#4a102a",
     to: "#fb7185",
   },
+  plum: {
+    label: "Plum",
+    from: "#2e1065",
+    to: "#a855f7",
+  },
   amber: {
     label: "Amber",
     from: "#422006",
     to: "#f59e0b",
+  },
+  graphite: {
+    label: "Graphite",
+    from: "#18181b",
+    to: "#71717a",
+  },
+  ocean: {
+    label: "Ocean",
+    from: "#083344",
+    to: "#06b6d4",
+  },
+  ruby: {
+    label: "Ruby",
+    from: "#450a0a",
+    to: "#ef4444",
+  },
+  forest: {
+    label: "Forest",
+    from: "#052e16",
+    to: "#22c55e",
+  },
+  midnight: {
+    label: "Midnight",
+    from: "#020617",
+    to: "#6366f1",
   },
 } as const;
 
@@ -124,10 +166,12 @@ export function DecantCalculator() {
   const [perfumeName, setPerfumeName] = useState("Hawas Ice");
   const [shopName, setShopName] = useState("Decant BD");
   const [inputs, setInputs] = useState<CalculatorInputs>(DEFAULT_CALCULATOR_INPUTS);
+  const [customDecantSize, setCustomDecantSize] = useState(1);
   const [copyLabel, setCopyLabel] = useState("Copy Result");
   const [downloadLabel, setDownloadLabel] = useState("Download Card");
   const [competitorPrice10ml, setCompetitorPrice10ml] = useState(550);
   const [cardBackground, setCardBackground] = useState<CardBackgroundKey>("emerald");
+  const [backgroundPickerOpen, setBackgroundPickerOpen] = useState(false);
   const [fontColor, setFontColor] = useState("#ffffff");
   const [accentColor, setAccentColor] = useState("#fef3c7");
 
@@ -143,7 +187,12 @@ export function DecantCalculator() {
     shippingCost: inputs.shippingCost,
     decantSize: 10,
     competitorPrice: competitorPrice10ml,
-    packagingCost: tenMlResult?.packagingCost ?? 0,
+    packagingCost:
+      tenMlResult?.packagingCost ??
+      getPackagingCost(inputs.packagingCosts, 10) +
+        inputs.stickerCost +
+        inputs.bubbleWrapCost +
+        inputs.miscCost,
   });
 
   const updateInput = <Key extends keyof CalculatorInputs>(
@@ -162,6 +211,46 @@ export function DecantCalculator() {
       packagingCosts: {
         ...current.packagingCosts,
         [size]: value,
+      },
+    }));
+  };
+
+  const toggleDecantSize = (size: DecantSize) => {
+    setInputs((current) => {
+      const isActive = current.decantSizes.includes(size);
+
+      if (isActive && current.decantSizes.length === 1) {
+        return current;
+      }
+
+      return {
+        ...current,
+        decantSizes: normalizeDecantSizes(
+          isActive
+            ? current.decantSizes.filter((currentSize) => currentSize !== size)
+            : [...current.decantSizes, size],
+        ),
+        packagingCosts: {
+          ...current.packagingCosts,
+          [size]: getPackagingCost(current.packagingCosts, size),
+        },
+      };
+    });
+  };
+
+  const addCustomDecantSize = () => {
+    const size = Number(customDecantSize);
+
+    if (!Number.isFinite(size) || size <= 0) {
+      return;
+    }
+
+    setInputs((current) => ({
+      ...current,
+      decantSizes: normalizeDecantSizes([...current.decantSizes, size]),
+      packagingCosts: {
+        ...current.packagingCosts,
+        [size]: getPackagingCost(current.packagingCosts, size),
       },
     }));
   };
@@ -270,13 +359,61 @@ export function DecantCalculator() {
                 <CardDescription>These costs are added to every decant sold.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
+                <div className="space-y-3">
+                  <Label>Decant Sizes</Label>
+                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+                    {DECANT_SIZES.map((size) => {
+                      const isActive = inputs.decantSizes.includes(size);
+
+                      return (
+                        <button
+                          key={size}
+                          type="button"
+                          onClick={() => toggleDecantSize(size)}
+                          className={
+                            isActive
+                              ? "h-10 rounded-md border border-emerald-600 bg-emerald-50 text-sm font-bold text-emerald-800 transition dark:border-emerald-500 dark:bg-emerald-950 dark:text-emerald-200"
+                              : "h-10 rounded-md border border-zinc-200 bg-white text-sm font-semibold text-zinc-600 transition hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300"
+                          }
+                        >
+                          {size}ml
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                    <NumberField
+                      id="custom-decant-size"
+                      label="Custom Size"
+                      suffix="ml"
+                      value={customDecantSize}
+                      onChange={setCustomDecantSize}
+                    />
+                    <Button onClick={addCustomDecantSize} className="self-end">
+                      Add Size
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {inputs.decantSizes.map((size) => (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={() => toggleDecantSize(size)}
+                        className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-semibold text-zinc-700 transition hover:border-red-300 hover:text-red-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-red-800 dark:hover:text-red-300"
+                      >
+                        {size}ml remove
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="border-t border-zinc-200 dark:border-zinc-800" />
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  {DECANT_SIZES.map((size) => (
+                  {inputs.decantSizes.map((size) => (
                     <NumberField
                       key={size}
                       id={`packaging-${size}`}
                       label={`${size}ml Bottle Cost`}
-                      value={inputs.packagingCosts[size]}
+                      value={getPackagingCost(inputs.packagingCosts, size)}
                       onChange={(value) => updatePackaging(size, value)}
                     />
                   ))}
@@ -442,18 +579,61 @@ export function DecantCalculator() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="card-background">Background</Label>
-                    <select
-                      id="card-background"
-                      value={cardBackground}
-                      onChange={(event) => setCardBackground(event.target.value as CardBackgroundKey)}
-                      className="h-11 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-950 outline-none transition focus:border-zinc-950 focus:ring-4 focus:ring-zinc-950/10 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-200 dark:focus:ring-white/10"
-                    >
-                      {Object.entries(CARD_BACKGROUNDS).map(([key, background]) => (
-                        <option key={key} value={key}>
-                          {background.label}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <button
+                        id="card-background"
+                        type="button"
+                        aria-expanded={backgroundPickerOpen}
+                        onClick={() => setBackgroundPickerOpen((isOpen) => !isOpen)}
+                        className="flex h-11 w-full items-center justify-between gap-3 rounded-md border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-950 outline-none transition focus:border-zinc-950 focus:ring-4 focus:ring-zinc-950/10 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-200 dark:focus:ring-white/10"
+                      >
+                        <span className="flex min-w-0 items-center gap-3">
+                          <span
+                            className="h-6 w-10 shrink-0 rounded-md border border-black/10 dark:border-white/15"
+                            style={{
+                              background: `linear-gradient(135deg, ${selectedBackground.from}, ${selectedBackground.to})`,
+                            }}
+                          />
+                          <span className="truncate">{selectedBackground.label}</span>
+                        </span>
+                        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                          {backgroundPickerOpen ? "Close" : "Change"}
+                        </span>
+                      </button>
+                      {backgroundPickerOpen ? (
+                        <div className="absolute left-0 top-12 z-20 w-full rounded-lg border border-zinc-200 bg-white p-2 shadow-xl shadow-black/10 dark:border-zinc-800 dark:bg-zinc-950 sm:w-[360px]">
+                          <div className="grid max-h-72 grid-cols-2 gap-2 overflow-y-auto pr-1">
+                            {Object.entries(CARD_BACKGROUNDS).map(([key, background]) => {
+                              const isSelected = key === cardBackground;
+
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  onClick={() => {
+                                    setCardBackground(key as CardBackgroundKey);
+                                    setBackgroundPickerOpen(false);
+                                  }}
+                                  className={
+                                    isSelected
+                                      ? "flex min-w-0 flex-col gap-2 rounded-md border border-emerald-500 bg-emerald-50 p-2 text-left text-sm font-bold text-emerald-900 dark:border-emerald-500 dark:bg-emerald-950 dark:text-emerald-100"
+                                      : "flex min-w-0 flex-col gap-2 rounded-md border border-transparent p-2 text-left text-sm font-semibold text-zinc-700 transition hover:border-zinc-200 hover:bg-zinc-50 dark:text-zinc-200 dark:hover:border-zinc-800 dark:hover:bg-zinc-900"
+                                  }
+                                >
+                                  <span
+                                    className="h-12 w-full rounded-md border border-black/10 dark:border-white/15"
+                                    style={{
+                                      background: `linear-gradient(135deg, ${background.from}, ${background.to})`,
+                                    }}
+                                  />
+                                  <span className="truncate">{background.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="font-color">Font Color</Label>
@@ -513,7 +693,7 @@ export function DecantCalculator() {
                       ))}
                     </div>
                     <div
-                      className="mx-auto mt-auto w-fit rounded-full bg-white/15 px-[clamp(1.2rem,4vw,2rem)] py-[clamp(0.45rem,1.4vw,0.7rem)] text-[clamp(0.65rem,2vw,0.85rem)] font-bold uppercase tracking-normal"
+                      className="mx-auto mt-auto w-fit translate-y-[-0.35rem] rounded-full bg-white/15 px-[clamp(1.2rem,4vw,2rem)] py-[clamp(0.45rem,1.4vw,0.7rem)] text-[clamp(0.65rem,2vw,0.85rem)] font-bold uppercase tracking-normal"
                       style={{ color: accentColor }}
                     >
                       DM to order
