@@ -26,12 +26,12 @@ export type DecantResult = {
 
 export const DEFAULT_PACKAGING_COSTS: PackagingCosts = {
   2: 15,
-  3: 15,
-  5: 20,
-  10: 25,
-  15: 30,
-  20: 35,
-  30: 45,
+  3: 20,
+  5: 40,
+  10: 50,
+  15: 60,
+  20: 120,
+  30: 140,
 };
 
 export const DEFAULT_CALCULATOR_INPUTS: CalculatorInputs = {
